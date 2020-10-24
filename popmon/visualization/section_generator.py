@@ -28,11 +28,11 @@ from tqdm import tqdm
 
 from ..base import Module
 from ..config import get_stat_description
-from ..visualization.utils import _prune, plot_bars_b64
+from ..visualization.utils import plot_bars_b64, plot_traffic_lights_b64
 
 
 class SectionGenerator(Module):
-    """This module takes the time-series data of already computed statistics, plots the data and
+    """This module takes the time-series data of already computed statistcs, plots the data and
     combines all the plots into a list which is stored together with the section name in a dictionary
     which later will be used for the report generation.
     """
@@ -55,6 +55,7 @@ class SectionGenerator(Module):
         skip_empty_plots=True,
         description="",
         show_stats=None,
+        tl_section=False,
     ):
         """Initialize an instance of SectionGenerator.
 
@@ -74,6 +75,7 @@ class SectionGenerator(Module):
         :param bool skip_empty_plots: if false, also show empty plots in report with only nans or zeroes (optional)
         :param str description: description of the section. default is empty (optional)
         :param list show_stats: list of statistic name patterns to show in the report. If None, show all (optional)
+        :param bool tl_section: whether to use traffic light plotting or not
         """
         super().__init__()
         self.read_key = read_key
@@ -92,6 +94,7 @@ class SectionGenerator(Module):
         self.skip_empty_plots = skip_empty_plots
         self.description = description
         self.show_stats = show_stats
+        self.tl_section = tl_section
 
     def transform(self, datastore):
         data_obj = self.get_datastore_object(datastore, self.read_key, dtype=dict)
@@ -155,6 +158,7 @@ class SectionGenerator(Module):
                     self.skip_first_n,
                     self.skip_last_n,
                     self.skip_empty_plots,
+                    self.tl_section,
                 )
                 for metric in metrics
             )
@@ -192,6 +196,7 @@ def _plot_metric(
     skip_first_n,
     skip_last_n,
     skip_empty,
+    tl_section,
 ):
     """Split off plot histogram generation to allow for parallel processing"""
     # pick up static traffic light boundaries
@@ -213,12 +218,34 @@ def _plot_metric(
     values = _prune(values, last_n, skip_first_n, skip_last_n)
 
     # make plot. note: slow!
-    plot = plot_bars_b64(
-        data=np.array(values),
-        labels=dates,
-        ylim=True,
-        bounds=bounds,
-        skip_empty=skip_empty,
-    )
-
+    if tl_section:
+        plot = plot_traffic_lights_b64(
+            data=np.array(values), labels=dates, skip_empty=skip_empty
+        )
+    else:
+        plot = plot_bars_b64(
+            data=np.array(values),
+            labels=dates,
+            ylim=True,
+            bounds=bounds,
+            skip_empty=skip_empty,
+        )
     return dict(name=metric, description=get_stat_description(metric), plot=plot)
+
+
+def _prune(values, last_n=0, skip_first_n=0, skip_last_n=0):
+    """inline function to select first or last items of input list
+
+    :param values: input list to select from
+    :param int last_n: select last 'n' items of values. default is 0.
+    :param int skip_first_n: skip first n items of values. default is 0. last_n takes precedence.
+    :param int skip_last_n: in plot skip last 'n' periods. last_n takes precedence (optional)
+    :return: list of selected values
+    """
+    if last_n > 0:
+        return values[-last_n:]
+    if skip_first_n > 0:
+        values = values[skip_first_n:]
+    if skip_last_n > 0:
+        values = values[:-skip_last_n]
+    return values
