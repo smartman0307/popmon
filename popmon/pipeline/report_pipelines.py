@@ -18,7 +18,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-from pathlib import Path
+from pathlib import PosixPath
 
 from ..base import Pipeline
 from ..config import config
@@ -30,7 +30,6 @@ from ..pipeline.metrics_pipelines import (
     metrics_self_reference,
 )
 from ..visualization import (
-    AlertSectionGenerator,
     HistogramSection,
     ReportGenerator,
     SectionGenerator,
@@ -47,7 +46,7 @@ def self_reference(
     features=None,
     skip_empty_plots=True,
     last_n=0,
-    plot_hist_n=6,
+    plot_hist_n=2,
     report_filepath=None,
     show_stats=None,
     **kwargs,
@@ -161,7 +160,7 @@ def rolling_reference(
     features=None,
     skip_empty_plots=True,
     last_n=0,
-    plot_hist_n=6,
+    plot_hist_n=2,
     report_filepath=None,
     show_stats=None,
     **kwargs,
@@ -219,7 +218,7 @@ def expanding_reference(
     features=None,
     skip_empty_plots=True,
     last_n=0,
-    plot_hist_n=6,
+    plot_hist_n=2,
     report_filepath=None,
     show_stats=None,
     **kwargs,
@@ -285,7 +284,7 @@ class ReportPipe(Pipeline):
         last_n=0,
         skip_first_n=0,
         skip_last_n=0,
-        plot_hist_n=6,
+        plot_hist_n=2,
     ):
         """Initialize an instance of Report.
 
@@ -330,6 +329,24 @@ class ReportPipe(Pipeline):
             #       - a section showing all traffic light alerts of monitored statistics
             #       - a section with a summary of traffic light alerts
             # --- o generate report
+            SectionGenerator(
+                dynamic_bounds="dynamic_bounds",
+                section_name=profiles_section,
+                static_bounds="static_bounds",
+                ignore_stat_endswith=["_mean", "_std", "_pull"],
+                **sg_kws("profiles"),
+            ),
+            SectionGenerator(
+                dynamic_bounds="dynamic_bounds_comparisons",
+                static_bounds="static_bounds_comparisons",
+                section_name=comparisons_section,
+                ignore_stat_endswith=["_mean", "_std", "_pull"],
+                **sg_kws("comparisons"),
+            ),
+            TrafficLightSectionGenerator(
+                section_name=traffic_lights_section, **sg_kws("traffic_lights")
+            ),
+            SectionGenerator(section_name=alerts_section, **sg_kws("alerts")),
             HistogramSection(
                 read_key="split_hists",
                 store_key=sections_key,
@@ -338,27 +355,9 @@ class ReportPipe(Pipeline):
                 last_n=plot_hist_n,
                 description=descs.get("histograms", ""),
             ),
-            TrafficLightSectionGenerator(
-                section_name=traffic_lights_section, **sg_kws("traffic_lights")
-            ),
-            AlertSectionGenerator(section_name=alerts_section, **sg_kws("alerts")),
-            SectionGenerator(
-                dynamic_bounds="dynamic_bounds_comparisons",
-                static_bounds="static_bounds_comparisons",
-                section_name=comparisons_section,
-                ignore_stat_endswith=["_mean", "_std", "_pull"],
-                **sg_kws("comparisons"),
-            ),
-            SectionGenerator(
-                dynamic_bounds="dynamic_bounds",
-                section_name=profiles_section,
-                static_bounds="static_bounds",
-                ignore_stat_endswith=["_mean", "_std", "_pull"],
-                **sg_kws("profiles"),
-            ),
             ReportGenerator(read_key=sections_key, store_key=store_key),
         ]
-        if isinstance(report_filepath, (str, Path)) and len(report_filepath) > 0:
+        if isinstance(report_filepath, (str, PosixPath)) and len(report_filepath) > 0:
             self.modules.append(FileWriter(store_key, file_path=report_filepath))
 
     def transform(self, datastore):

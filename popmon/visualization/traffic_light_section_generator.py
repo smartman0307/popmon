@@ -30,7 +30,6 @@ from ..base import Module
 from ..config import get_stat_description
 from ..visualization.utils import (
     _prune,
-    plot_traffic_lights_alerts_b64,
     plot_traffic_lights_b64,
     plot_traffic_lights_heatmap_b64,
 )
@@ -61,7 +60,7 @@ class TrafficLightSectionGenerator(Module):
         description="",
         show_stats=None,
         plot_overview=True,
-        plot_metrics=False,
+        plot_metrics=True,
     ):
         """Initialize an instance of SectionGenerator.
 
@@ -153,7 +152,7 @@ class TrafficLightSectionGenerator(Module):
             plots = []
             if self.plot_overview:
                 plots.append(
-                    _plot_metrics(
+                    _plot_heatmap(
                         metrics,
                         dates,
                         df,
@@ -214,9 +213,7 @@ def _plot_metric(metric, dates, values, last_n, skip_first_n, skip_last_n, skip_
     return dict(name=metric, description=get_stat_description(metric), plot=plot)
 
 
-def _plot_metrics(
-    metrics, dates, df, last_n, skip_first_n, skip_last_n, skip_empty, style="heatmap"
-):
+def _plot_heatmap(metrics, dates, df, last_n, skip_first_n, skip_last_n, skip_empty):
     # prune dates and values
     dates = _prune(dates, last_n, skip_first_n, skip_last_n)
 
@@ -233,18 +230,9 @@ def _plot_metrics(
         values = np.stack(values)
 
         # make plot. note: slow!
-        if style == "heatmap":
-            plot = plot_traffic_lights_heatmap_b64(
-                values, metrics=nonempty_metrics, labels=dates
-            )
-        elif style == "alerts":
-            plot = plot_traffic_lights_alerts_b64(
-                values,
-                metrics=nonempty_metrics,
-                labels=dates,
-            )
-        else:
-            raise ValueError("style must be either 'heatmap' or 'alerts'")
+        plot = plot_traffic_lights_heatmap_b64(
+            values, metrics=nonempty_metrics, labels=dates
+        )
     else:
         plot = ""
 
